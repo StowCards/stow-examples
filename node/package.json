@@ -1,6 +1,6 @@
 {
   "name": "@stowcards/sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official Node.js SDK for the Stow Cards API: enrol members, manage their Apple and Google Wallet passes, adjust points, redeem rewards and verify webhooks.",
   "keywords": [
     "stow",

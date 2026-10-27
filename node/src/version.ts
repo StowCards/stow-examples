@@ -8,4 +8,4 @@
  * `string`, not the literal, so the API report stays the same across releases.
  */
 // eslint-disable-next-line @typescript-eslint/no-inferrable-types
-export const VERSION: string = '1.0.0'; // x-release-please-version
+export const VERSION: string = '1.0.1'; // x-release-please-version

@@ -1,0 +1,11 @@
+# Build and runtime output of the language examples
+__pycache__/
+*.pyc
+target/
+bin/
+obj/
+
+# Local settings, which may hold an API key
+.env
+.env.*
+!.env.example

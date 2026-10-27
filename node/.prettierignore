@@ -1,0 +1,6 @@
+dist/
+coverage/
+temp/
+review/*.api.md
+package-lock.json
+CHANGELOG.md

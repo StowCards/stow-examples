@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+temp/
+*.tgz
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# The monorepo ignores npm lockfiles; this package is npm-managed and needs its own.
+!package-lock.json

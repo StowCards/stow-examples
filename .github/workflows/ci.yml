@@ -1,7 +1,8 @@
-# Builds every example and runs its demo against tests/mock_gateway.py
-# (tests/check.sh), on the oldest supported and a current toolchain. Nothing
-# here calls the real API. The weekly run catches toolchain changes.
-name: CI
+# Builds every language example and runs its demo against
+# tests/mock_gateway.py (tests/check.sh), on the oldest supported and a current
+# toolchain. Nothing here calls the real API. The weekly run catches toolchain
+# changes. The Node.js SDK in node/ has its own workflow, node-sdk.yml.
+name: Examples
 
 on:
   push:

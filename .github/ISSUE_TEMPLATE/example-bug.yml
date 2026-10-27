@@ -1,0 +1,42 @@
+name: Example problem
+description: A language example (Python, PHP, Ruby, Java, .NET or Go) fails or does not match the API.
+title: '[Example] '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Never paste an API key, webhook secret or customer data.**
+        For a security vulnerability, do not open an issue: follow SECURITY.md instead.
+  - type: dropdown
+    id: example
+    attributes:
+      label: Example
+      options:
+        - Python
+        - PHP
+        - Ruby
+        - Java
+        - .NET
+        - Go
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Language version and OS
+      placeholder: 'Python 3.12 on macOS 15'
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the command you ran and its output, with the key removed.
+    validations:
+      required: true
+  - type: input
+    id: request-id
+    attributes:
+      label: Request id
+      description: The `(request id ...)` part of the error line, if the API was involved.

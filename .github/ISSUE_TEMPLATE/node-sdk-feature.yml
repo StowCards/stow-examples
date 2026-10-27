@@ -1,0 +1,20 @@
+name: Node.js SDK feature request
+description: Suggest an improvement to the Node.js SDK (@stowcards/sdk).
+title: '[Node.js SDK] '
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like the SDK to do?
+      render: ts
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds you use today

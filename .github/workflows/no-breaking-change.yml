@@ -1,0 +1,30 @@
+# The Node.js SDK in node/ stays on 1.0.x and only adds to its public API, so
+# a pull request may not declare a breaking change. Runs again when the title or description
+# is edited, because a squash merge takes both from the pull request.
+name: No breaking change
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  no-breaking-change:
+    name: No breaking change (the SDK stays on 1.0.x)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject a pull request that declares a breaking change
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if printf '%s\n' "$TITLE" | grep -Eq '^[A-Za-z]+(\([^)]*\))?!:'; then
+            echo "::error::The SDK stays on 1.0.x and only adds to its API, so a breaking change (type!:) is not accepted."
+            exit 1
+          fi
+          if printf '%s\n' "$BODY" | grep -Eq '^BREAKING[ -]CHANGE:'; then
+            echo "::error::Remove the BREAKING CHANGE footer: the SDK stays on 1.0.x and only adds to its API."
+            exit 1
+          fi

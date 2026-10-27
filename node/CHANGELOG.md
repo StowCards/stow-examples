@@ -5,6 +5,13 @@ All notable changes to this package are documented here. The format follows
 last number, and releases only add to the public API. release-please writes new entries from Conventional
 Commits.
 
+## [1.0.1](https://github.com/StowCards/stow-examples/compare/node-v1.0.0...node-v1.0.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* move the SDK to StowCards/stow-examples and point npm at node/ ([#1](https://github.com/StowCards/stow-examples/issues/1)) ([f085c09](https://github.com/StowCards/stow-examples/commit/f085c09f732c5e3c4d42d8317a8adc5109cfa13d))
+
 ## 1.0.0 (2026-10-13)
 
 First public release, covering version 1.0.14 of the Stow Cards API.

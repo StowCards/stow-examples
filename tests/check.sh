@@ -33,7 +33,9 @@ build() {
     python) "$PY" -m py_compile python/*.py && rm -rf python/__pycache__ ;;
     php) for f in php/*.php; do php -l "$f" >/dev/null || return 1; done ;;
     ruby) ruby -wc ruby/stow_client.rb && ruby -wc ruby/demo.rb ;;
-    java) (cd java && mvn -q -B compile) ;;
+    # The demo runs on a plain JVM below: exec:java runs it inside Maven's JVM,
+    # and some Maven installs route the program's stderr to stdout.
+    java) (cd java && mvn -q -B compile dependency:build-classpath -Dmdep.outputFile="$WORK/java.cp") ;;
     dotnet) (cd dotnet && dotnet build -nologo -v quiet) ;;
     go) (cd go && test -z "$(gofmt -l .)" && go vet ./... && go build -o "$WORK/go-demo" .) ;;
     *) echo "unknown example: $EXAMPLE" >&2; return 1 ;;
@@ -45,7 +47,7 @@ demo() {
     python) (cd python && "$PY" -B demo.py) ;;
     php) (cd php && php demo.php) ;;
     ruby) (cd ruby && ruby demo.rb) ;;
-    java) (cd java && mvn -q -B exec:java) ;;
+    java) java -cp "java/target/classes:$(cat "$WORK/java.cp")" cards.stow.example.Demo ;;
     dotnet) (cd dotnet && dotnet run --no-build) ;;
     go) "$WORK/go-demo" ;;
   esac

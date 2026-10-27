@@ -43,6 +43,15 @@ docker run --rm -v "$PWD":/app -w /app -v stow-example-m2:/root/.m2 \
   maven:3.9-eclipse-temurin-21 mvn -q compile exec:java
 ```
 
+`exec:java` runs the demo inside Maven's own JVM, and some Maven installs send the program's
+error line to stdout instead of stderr (the exit code is unaffected). To run it on a plain JVM,
+as `tests/check.sh` does:
+
+```bash
+mvn -q compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt
+java -cp "target/classes:$(cat target/cp.txt)" cards.stow.example.Demo
+```
+
 The key is trimmed of the surrounding whitespace JavaScript's `trim()` removes, which includes
 a no-break space picked up when copying from a web page, and must then be visible ASCII only:
 a key with a space, a line break or a curly quote inside it (a bad paste) is refused before

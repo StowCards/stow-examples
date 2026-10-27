@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/StowCards/stow-examples/security/advisories/new
+    about: Report privately. Do not open a public issue.
+  - name: API documentation
+    url: https://stow.cards/developers/
+    about: Endpoints, webhooks and concepts of the Stow Cards API.
+  - name: Account or billing help
+    url: https://stow.cards/contact.html
+    about: Questions about your Stow Cards account, not the SDK or the examples.

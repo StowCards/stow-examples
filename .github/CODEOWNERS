@@ -1,2 +1,3 @@
-# Every change needs a review from the SDK maintainers.
+# Every change, to the Node.js SDK in node/ or to an example, needs a review
+# from the SDK maintainers.
 * @StowCards/sdk-maintainers

@@ -1,0 +1,43 @@
+name: Node.js SDK bug report
+description: Something in the Node.js SDK (@stowcards/sdk) does not work as documented.
+title: '[Node.js SDK] '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Never paste an API key, webhook secret or customer data.**
+        For a security vulnerability, do not open an issue: follow SECURITY.md instead.
+  - type: input
+    id: version
+    attributes:
+      label: SDK version
+      placeholder: '1.0.0'
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version and OS
+      placeholder: 'Node 24.10.0 on Ubuntu 24.04'
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: The smallest code that shows the problem.
+      render: ts
+    validations:
+      required: true
+  - type: input
+    id: request-id
+    attributes:
+      label: Request id
+      description: '`error.requestId`, or `response.requestId` from `.withResponse()`, if the API was involved.'

@@ -38,26 +38,36 @@ begin
   puts "Stow Cards API at #{stow.base_url}"
 
   # The client checks that every program has an "_id" and every member an "id".
+  # Use the first active program with a points balance (points, tiered or gift
+  # card), else the first active stamp card. Other pass types (coupons,
+  # memberships, tickets...) have no balance to change.
   programs = stow.list_programs
-  program = programs.find { |p| p["status"] == "active" }
+  active = programs.select { |p| p["status"] == "active" }
+  program = active.find { |p| %w[points tiered giftCard].include?(p["programType"]) } ||
+            active.find { |p| p["programType"] == "stamps" }
   unless program
-    fail_with("Error: none of the #{programs.size} programs on this merchant is active. " \
-              "Publish a program in the Stow Cards console (Pass Designer), then run this again.", 1)
+    fail_with("Error: none of the #{programs.size} programs on this merchant is an active points, tiered, " \
+              "gift card or stamp card program. Publish one in the Stow Cards console (Pass Designer), " \
+              "then run this again.", 1)
   end
-  puts %(1. Programs: #{programs.size} found, using "#{program["name"]}" (#{program["_id"]}))
+  stamps = program["programType"] == "stamps"
+  puts %(1. Programs: #{programs.size} found, using "#{program["name"]}" (#{program["_id"]}, #{program["programType"]}))
 
+  # A stamp card starts empty: a starting balance of 50 would fill it.
   email = "dev+#{Process.clock_gettime(Process::CLOCK_REALTIME, :millisecond)}@example.com"
   enrolled = stow.enroll_member(program_id: program["_id"], first_name: "Ada", last_name: "Lovelace",
-                                email: email, initial_points: 50)
+                                email: email, initial_points: stamps ? nil : 50)
   member_id = enrolled["id"]
   note = enrolled["deduped"] ? " (deduped: true, the existing member was returned)" : ""
   puts "2. Enrolled #{email}#{note}"
 
   # One key for this gesture; the client resends the same key on every retry.
+  # A stamp card moves one stamp at a time.
   idempotency_key = SecureRandom.uuid
-  result = stow.adjust_points(member_id, delta: 10, change_message: "Thanks for visiting!",
+  result = stow.adjust_points(member_id, delta: stamps ? 1 : 10, change_message: "Thanks for visiting!",
                                          idempotency_key: idempotency_key)
-  puts "3. Awarded 10 points: #{result["previous"]} -> #{result["current"]} (Idempotency-Key #{idempotency_key})"
+  added = stamps ? "1 stamp" : "10 points"
+  puts "3. Added #{added}: #{result["previous"]} -> #{result["current"]} (Idempotency-Key #{idempotency_key})"
 
   member = stow.get_member(member_id)
   # The balance key comes from the member's program snapshot, then the program

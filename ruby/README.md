@@ -14,7 +14,9 @@ points and read the member back. It uses the standard library only
   - `merchants.members:create` (enroll the member)
   - `merchants.members:edit` (the points change)
   - `merchants.members:view` (the read-back)
-- At least one active (published) program on the merchant the key belongs to.
+- At least one active (published) points, tiered, gift card or stamp card program on the
+  merchant the key belongs to. The demo uses the first points, tiered or gift card program
+  and awards 10 points, else the first stamp card and adds 1 stamp.
 
 ## Run
 
@@ -49,10 +51,10 @@ From a run against a mock gateway that fails the first points attempt with a
 
 ```text
 Stow Cards API at http://host.docker.internal:6223/api/v1
-1. Programs: 2 found, using "Harbor Coffee Rewards" (6a0000000000000000000002)
+1. Programs: 4 found, using "Harbor Coffee Rewards" (6a0000000000000000000002, points)
 2. Enrolled dev+1793004858243@example.com
    retry 1/2 in 0.30 s after 503 SERVICE_UNAVAILABLE
-3. Awarded 10 points: 50 -> 60 (Idempotency-Key 690e95aa-a5ec-431a-b6e6-376ee68da08a)
+3. Added 10 points: 50 -> 60 (Idempotency-Key 690e95aa-a5ec-431a-b6e6-376ee68da08a)
 4. Member read back
    Member ID:     4VYKRYY2BC
    Balance:       60 points

@@ -14,7 +14,9 @@ the member back.
 
 - Go 1.22 or later.
 - A published program with status `active` on your merchant (web console >
-  Pass Designer).
+  Pass Designer) with a balance the demo can change: it uses the first points,
+  tiered or gift card program and awards 10 points, else the first stamp card
+  and adds 1 stamp.
 - An API key (web console > Administration > API Keys) whose role has these
   four permissions:
   - `merchants.programs:view` (list programs)
@@ -56,7 +58,7 @@ has wallet credentials. Use a test merchant.
 From a server without wallet credentials, so both wallets report stub mode:
 
 ```text
-Program:       Harbor Coffee Rewards (6a0000000000000000000002), first active of 2
+Program:       Harbor Coffee Rewards (6a0000000000000000000002, points) of 4
 Enrolled:      dev+1793004623682@example.com
 Points:        50 -> 60 (Idempotency-Key 7b41c08d-9fc7-412c-9d9e-7b63d0ac6504)
 Member ID:     KF936MMDAV

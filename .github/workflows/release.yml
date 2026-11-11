@@ -1,9 +1,10 @@
 # Release automation for the Node.js SDK in node/ (Conventional Commits +
 # release-please, as in Google's client libraries). Only commits that touch
 # node/ count. Merging the release PR that release-please keeps open tags the
-# release (node-vX.Y.Z), and the publish job ships it to npm through trusted
-# publishing (OIDC): no npm token is stored, and npm attaches a provenance
-# attestation automatically. Setup steps are in node/RELEASING.md.
+# release (node-vX.Y.Z); the build job checks and packs it, and the publish job
+# ships that tarball to npm through trusted publishing (OIDC): no npm token is
+# stored, and npm attaches a provenance attestation automatically. Setup steps
+# are in node/RELEASING.md.
 name: Release
 
 on:
@@ -47,14 +48,16 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  publish:
+  # Everything that runs the package's or its dependencies' code (install
+  # scripts, tests, the build) happens here, in a job that cannot publish: it
+  # has no id-token and only reads the repository. It hands the publish job the
+  # finished tarball and its SBOM.
+  build:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
-    environment: npm
     permissions:
-      contents: write # upload the SBOM to the GitHub release
-      id-token: write # npm trusted publishing (OIDC)
+      contents: read
     defaults:
       run:
         working-directory: node
@@ -66,21 +69,56 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+      - run: npm ci
+      - name: Run every check before publishing
+        run: npm run ci
+      - name: Pack the release tarball
+        run: npm pack
+      - name: Make a CycloneDX SBOM
+        run: npm sbom --sbom-format cyclonedx --omit dev > sbom.cdx.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: |
+            node/stowcards-sdk-*.tgz
+            node/sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # Holds the publishing token, so it runs no code from the package or its
+  # dependencies: no checkout, no install, and the tarball is published with
+  # --ignore-scripts. The download fails if the artifact's digest does not match.
+  publish:
+    needs: [release-please, build]
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: write # upload the SBOM to the GitHub release
+      id-token: write # npm trusted publishing (OIDC)
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
           registry-url: https://registry.npmjs.org
       # Trusted publishing needs npm 11.5.1 or later. The version is exact, like
       # the action SHAs above, so this job (which holds id-token: write) never
       # runs an npm release nobody has reviewed. Bump it on purpose.
       - name: Use an npm that supports trusted publishing (11.5.1 or later)
         run: npm install --global npm@11.21.0
-      - run: npm ci
-      - name: Run every check before publishing
-        run: npm run ci
-      - name: Publish to npm with provenance
-        run: npm publish --access public
-      - name: Attach a CycloneDX SBOM to the release
+      - name: Publish the checked tarball to npm with provenance
+        run: |
+          shopt -s nullglob
+          tarballs=(stowcards-sdk-*.tgz)
+          if [ "${#tarballs[@]}" -ne 1 ]; then
+            echo "Expected exactly one tarball, found ${#tarballs[@]}." >&2
+            exit 1
+          fi
+          npm publish "./${tarballs[0]}" --access public --ignore-scripts
+      - name: Attach the CycloneDX SBOM to the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
-        run: |
-          npm sbom --sbom-format cyclonedx --omit dev > sbom.cdx.json
-          gh release upload "$TAG" sbom.cdx.json --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" sbom.cdx.json --repo "$GITHUB_REPOSITORY"

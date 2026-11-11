@@ -14,7 +14,13 @@ Auth: X-API-Key or "Authorization: ApiKey <key>". A key must start with
 "stow_"; any key containing "invalid" answers 401 INVALID_API_KEY, a missing
 key 401 NO_TOKEN. Nothing here touches the real API or issues wallet passes.
 
-  python3 -I tests/mock_gateway.py [port] [--flaky | --in-use | --in-use-first] [--bind ADDR]
+  python3 -I tests/mock_gateway.py [port] [--flaky | --in-use | --in-use-first | --stamps-only | --no-balance] [--bind ADDR]
+
+The program list starts with an archived card, an active stamp card and an
+active membership card, then the active points program, so a demo must skip
+the programs whose balance it cannot change by 10. As in the API, a stamp
+card takes only +1 or -1 (409 STAMP_CARD_FULL at its goal), and a pass type
+with no balance answers 400 BALANCE_NOT_ADJUSTABLE.
 
 --flaky: the first attempt for every new Idempotency-Key answers 503, so a
 client that retries must resend the SAME key.
@@ -24,8 +30,13 @@ succeeds. A client following the rules succeeds on its third attempt.
 --in-use-first: the FIRST attempt for every new key answers 409
 IDEMPOTENCY_KEY_IN_USE. A correct client must not retry it, so the demo
 stops with that error.
+--stamps-only: the points program is paused, so the demo must use the stamp
+card: enrol with no starting balance and add one stamp.
+--no-balance: only the membership card is active, so the demo must stop
+before enrolling anyone.
 Every request is logged to stdout as one JSON line.
 """
+import copy
 import json
 import re
 import sys
@@ -37,17 +48,30 @@ PORT = int(next((a for a in sys.argv[1:] if a.isdigit()), "6199"))
 FLAKY = "--flaky" in sys.argv
 IN_USE = "--in-use" in sys.argv
 IN_USE_FIRST = "--in-use-first" in sys.argv
+STAMPS_ONLY = "--stamps-only" in sys.argv
+NO_BALANCE = "--no-balance" in sys.argv
 # --bind 0.0.0.0 lets a Docker container reach the mock through host.docker.internal.
 BIND = sys.argv[sys.argv.index("--bind") + 1] if "--bind" in sys.argv else "127.0.0.1"
 KEY_RE = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
 PREFIX = "/api/v1"
+# The program types whose balance PATCH /points changes; every other type has none.
+BALANCE_TYPES = {"points", "stamps", "tiered", "giftCard"}
 
 PROGRAMS = [
     {"_id": "6a0000000000000000000001", "name": "Archived Card", "slug": "archived-card",
-     "status": "archived", "programType": "points", "productType": "loyalty_card", "balanceKey": "points",
+     "status": "archived", "programType": "points", "productType": "loyalty", "balanceKey": "points",
      "pointsStep": 1, "currency": None, "createdAt": "2026-01-01T00:00:00.000Z"},
+    {"_id": "6a0000000000000000000003", "name": "Harbor Coffee Stamps", "slug": "harbor-stamps",
+     "status": "paused" if NO_BALANCE else "active", "programType": "stamps", "productType": "loyalty",
+     "loyaltyStyle": "stamps", "balanceKey": "stamps", "stampGoal": 10, "pointsStep": 1, "currency": None,
+     "barcode": {"format": "PKBarcodeFormatQR", "valueTemplate": "MEMBER-{{memberCode}}"},
+     "createdAt": "2026-01-15T00:00:00.000Z"},
+    {"_id": "6a0000000000000000000004", "name": "Harbor Members Club", "slug": "harbor-members",
+     "status": "active", "programType": "membership", "productType": "membership", "balanceKey": "points",
+     "pointsStep": 1, "currency": None, "createdAt": "2026-01-20T00:00:00.000Z"},
     {"_id": "6a0000000000000000000002", "name": "Harbor Coffee Rewards", "slug": "harbor-coffee",
-     "status": "active", "programType": "points", "productType": "loyalty_card", "balanceKey": "points",
+     "status": "paused" if (STAMPS_ONLY or NO_BALANCE) else "active", "programType": "points",
+     "productType": "loyalty", "loyaltyStyle": "points", "balanceKey": "points",
      "pointsStep": 1, "currency": None,
      "barcode": {"format": "PKBarcodeFormatQR", "valueTemplate": "MEMBER-{{memberCode}}"},
      "createdAt": "2026-02-01T00:00:00.000Z"},
@@ -156,7 +180,7 @@ class Handler(BaseHTTPRequestHandler):
         program = next((p for p in PROGRAMS if p["_id"] == body["programId"]), None)
         if program is None:
             return self._error(404, "NOT_FOUND", "Program not found.")
-        if program["status"] != "active":
+        if program["status"] == "archived":
             return self._error(400, "BAD_REQUEST", "This program is archived and does not accept new members.")
         email = str(body["email"]).lower()
         existing = BY_EMAIL.get((program["_id"], email))
@@ -169,7 +193,10 @@ class Handler(BaseHTTPRequestHandler):
             "id": mid, "programId": program["_id"], "serialNumber": mid, "memberCode": code,
             "firstName": body["firstName"], "lastName": body["lastName"], "email": email,
             "status": "active", "passStatus": "created", "tags": [],
-            "fieldValues": {"points": int(body.get("initialPoints") or 0)},
+            # As in the API, initialPoints seeds the balance of any type that has one, a
+            # stamp card included (a stamp card starts at 0 only when none is sent).
+            "fieldValues": ({program["balanceKey"]: int(body.get("initialPoints") or 0)}
+                            if program["programType"] in BALANCE_TYPES else {}),
             "apple": {"passUrl": f"https://api.stow.cards/wallet/getpass/{mid}.pkpass", "installed": False, "mode": "stub"},
             "google": {"saveUrl": f"https://pay.google.com/gp/v/save/STUB-{mid}", "installed": False, "mode": "stub"},
             "barcode": {"value": f"MEMBER-{code}", "altText": code},
@@ -217,9 +244,19 @@ class Handler(BaseHTTPRequestHandler):
         amount = body["delta"] if has_delta else body["value"]
         if not isinstance(amount, int) or isinstance(amount, bool):
             return self._error(400, "BAD_REQUEST", "delta and value must be integers.")
-        previous = int(member["fieldValues"].get("points", 0))
+        program = next(p for p in PROGRAMS if p["_id"] == member["programId"])
+        if program["programType"] not in BALANCE_TYPES:
+            return self._error(400, "BALANCE_NOT_ADJUSTABLE",
+                               "This pass type is validated on scan and has no adjustable balance")
+        balance_key = program["balanceKey"]
+        previous = int(member["fieldValues"].get(balance_key, 0))
+        if program["programType"] == "stamps":
+            if not has_delta or amount not in (1, -1):
+                return self._error(400, "BAD_REQUEST", "Stamp programs can only be adjusted by +1 or -1 stamp")
+            if amount == 1 and previous >= program["stampGoal"]:
+                return self._error(409, "STAMP_CARD_FULL", "This card is full. Redeem the reward first.")
         current = max(0, previous + amount) if has_delta else max(0, amount)
-        member["fieldValues"]["points"] = current
+        member["fieldValues"][balance_key] = current
         member["passStatus"] = "in_use"
         member["updatedAt"] = now()
         result = {"success": True, "data": {
@@ -229,7 +266,8 @@ class Handler(BaseHTTPRequestHandler):
                            "apple": {"devicesNotified": 0, "devicesAttempted": 0, "mode": "stub"},
                            "google": {"objectPatched": False, "mode": "stub"}}}}
         if key:
-            IDEMPOTENCY[key] = (200, result)
+            # A copy, so a replay returns the answer as it was, not the member as it is now.
+            IDEMPOTENCY[key] = (200, copy.deepcopy(result))
         self._send(200, result)
 
     def _get_member(self, mid):
@@ -238,10 +276,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(404, "NOT_FOUND", "Member not found.")
         program = next(p for p in PROGRAMS if p["_id"] == member["programId"])
         self._send(200, {"success": True, "data": {
-            **member, "program": {"id": program["_id"], "name": program["name"], "programType": "points",
-                                  "loyaltyStyle": "points", "passType": "storeCard",
+            **member, "program": {"id": program["_id"], "name": program["name"],
+                                  "programType": program["programType"],
+                                  "loyaltyStyle": program.get("loyaltyStyle"), "passType": "storeCard",
                                   "balanceKey": program["balanceKey"], "pointsStep": program["pointsStep"],
-                                  "currency": program["currency"]},
+                                  "stampGoal": program.get("stampGoal"), "currency": program["currency"]},
             "deviceCount": 0, "redeemedCount": 0}})
 
     do_GET = do_POST = do_PATCH = do_DELETE = _route
@@ -249,5 +288,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(json.dumps({"listening": f"http://{BIND}:{PORT}/api/v1", "flaky": FLAKY, "inUse": IN_USE,
-                      "inUseFirst": IN_USE_FIRST}), flush=True)
+                      "inUseFirst": IN_USE_FIRST, "stampsOnly": STAMPS_ONLY, "noBalance": NO_BALANCE}), flush=True)
     ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()

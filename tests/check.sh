@@ -3,9 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Builds one example and runs its demo against tests/mock_gateway.py, checking
-# the behaviour every example promises: retries that reuse the Idempotency-Key,
-# the 409 IDEMPOTENCY_KEY_IN_USE rule, one-line errors and exit codes, and a
-# key that is never printed. Nothing here calls the real API.
+# the behaviour every example promises: the choice of a program whose balance
+# can change, retries that reuse the Idempotency-Key, the 409
+# IDEMPOTENCY_KEY_IN_USE rule, one-line errors and exit codes, and a key that
+# is never printed. Nothing here calls the real API.
 #
 #   tests/check.sh <python|php|ruby|java|dotnet|go>
 #
@@ -95,10 +96,12 @@ expect() { # expect <description> <condition...>
 }
 
 patches() { grep -c '"method": "PATCH"' "$WORK/mock.log"; }
+posts() { grep -c '"method": "POST"' "$WORK/mock.log"; }
 keys() { grep '"method": "PATCH"' "$WORK/mock.log" | grep -o '"idempotencyKey": "[^"]*"' | sort -u | wc -l | tr -d ' '; }
 gets_of_programs() { grep '"method": "GET"' "$WORK/mock.log" | grep -c '/merchants/me/programs'; }
 error_lines() { grep -c -E '^(Error|Configuration error):' "$WORK/err"; }
 balance_60() { grep -q -E 'Balance[^0-9]*60\b' "$WORK/out"; }
+balance_1() { grep -q -E 'Balance[^0-9]*1\b' "$WORK/out"; }
 eq() { [ "$1" = "$2" ]; }
 
 echo "== $EXAMPLE: build"
@@ -127,10 +130,31 @@ for mode in normal --flaky --in-use --in-use-first; do
       bash -c "[ \"\$(grep -c -E '^(Error|Configuration error):' '$WORK/err')\" = 1 ] && grep -q '409 IDEMPOTENCY_KEY_IN_USE' '$WORK/err'"
   else
     expect "exit code 0" eq "$RC" 0
-    expect "balance 60 printed" balance_60
+    expect "balance 60 printed (the points program, after skipping the stamp and membership cards)" balance_60
     expect "no error output" eq "$(error_lines)" 0
   fi
 done
+
+# Only a stamp card is active: enrol with no starting balance (seeding 50 stamps
+# would fill the 10-stamp card) and add one stamp.
+echo "== $EXAMPLE: mock --stamps-only"
+start_mock --stamps-only || exit 1
+run stow_ci_check_key
+stop_mock
+expect "1 PATCH request(s)" eq "$(patches)" 1
+expect "exit code 0" eq "$RC" 0
+expect "balance 1 printed (one stamp)" balance_1
+expect "no error output" eq "$(error_lines)" 0
+
+# No active program has a balance to change: stop before enrolling anyone.
+echo "== $EXAMPLE: mock --no-balance"
+start_mock --no-balance || exit 1
+run stow_ci_check_key
+stop_mock
+expect "no member enrolled" eq "$(posts)" 0
+expect "no PATCH request" eq "$(patches)" 0
+expect "exit code 1" eq "$RC" 1
+expect "one error line" eq "$(error_lines)" 1
 
 echo "== $EXAMPLE: invalid key"
 start_mock || exit 1

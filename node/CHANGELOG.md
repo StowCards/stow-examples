@@ -5,6 +5,13 @@ All notable changes to this package are documented here. The format follows
 last number, and releases only add to the public API. release-please writes new entries from Conventional
 Commits.
 
+## [1.0.2](https://github.com/StowCards/stow-examples/compare/node-v1.0.1...node-v1.0.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **examples:** pick a usable program, safer keys, isolated npm publish ([#9](https://github.com/StowCards/stow-examples/issues/9)) ([a2fc1a3](https://github.com/StowCards/stow-examples/commit/a2fc1a3361ab82ce1762936fac1dd7cfef8c3242))
+
 ## [1.0.1](https://github.com/StowCards/stow-examples/compare/node-v1.0.0...node-v1.0.1) (2026-10-27)
 
 

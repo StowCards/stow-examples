@@ -41,29 +41,38 @@ try {
 
 try {
     echo "1. Listing programs\n";
+    // The first active program with a points balance (points, tiered or gift card), else the
+    // first active stamp card. Other pass types (coupons, memberships, tickets...) have no balance.
+    $active = array_values(array_filter($stow->listPrograms(), static fn (array $p): bool => ($p['status'] ?? null) === 'active'));
     $program = null;
-    foreach ($stow->listPrograms() as $candidate) {
-        if (($candidate['status'] ?? null) === 'active') {
-            $program = $candidate;
-            break;
+    foreach ([['points', 'tiered', 'giftCard'], ['stamps']] as $wanted) {
+        foreach ($active as $candidate) {
+            if (in_array($candidate['programType'] ?? null, $wanted, true)) {
+                $program = $candidate;
+                break 2;
+            }
         }
-        printf("   skipping \"%s\" (%s)\n", $candidate['name'] ?? $candidate['_id'], $candidate['status'] ?? 'no status');
     }
     if ($program === null) {
-        fail('Error: No active program found. Publish a program in the web console (Pass Designer) first.');
+        fail('Error: No active points, tiered, gift card or stamp card program found. Publish one in the web console (Pass Designer) first.');
     }
+    $stamps = $program['programType'] === 'stamps';
     // Programs are keyed by `_id`; members by `id`.
-    printf("   using \"%s\" (%s)\n", $program['name'] ?? '', $program['_id']);
+    printf("   using \"%s\" (%s, %s)\n", $program['name'] ?? '', $program['_id'], $program['programType']);
 
     echo "2. Enrolling a member\n";
     $email = sprintf('dev+%d@example.com', (int) floor(microtime(true) * 1000));
-    $member = $stow->enrollMember([
+    $enrolment = [
         'programId' => $program['_id'],
         'firstName' => 'Ada',
         'lastName' => 'Lovelace',
         'email' => $email,
-        'initialPoints' => 50,
-    ]);
+    ];
+    // A stamp card starts empty: a starting balance of 50 would fill it.
+    if (!$stamps) {
+        $enrolment['initialPoints'] = 50;
+    }
+    $member = $stow->enrollMember($enrolment);
     printf("   enrolled %s\n", $email);
     if (($member['deduped'] ?? false) === true) {
         echo "   deduped: true, an existing member with this email was returned\n";
@@ -74,13 +83,14 @@ try {
         }
     }
 
-    echo "3. Awarding 10 points\n";
+    // A stamp card moves one stamp at a time.
+    echo $stamps ? "3. Adding 1 stamp\n" : "3. Awarding 10 points\n";
     // One key for this gesture. The client resends the same key on every
-    // retry, so the points are added once however many attempts it takes.
+    // retry, so the change is applied once however many attempts it takes.
     $idempotencyKey = StowClient::uuidV4();
     $result = $stow->adjustPoints(
         $member['id'],
-        ['delta' => 10, 'changeMessage' => 'Thanks for visiting!'],
+        ['delta' => $stamps ? 1 : 10, 'changeMessage' => 'Thanks for visiting!'],
         $idempotencyKey,
     );
     printf("   balance %s -> %s\n", $result['previous'] ?? '?', $result['current'] ?? '?');

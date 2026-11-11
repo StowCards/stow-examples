@@ -22,11 +22,17 @@ concurrency:
 jobs:
   python:
     name: Python ${{ matrix.version }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        version: ['3.9', '3.14']
+        include:
+          # setup-python builds no end-of-life Python for a newer Ubuntu: 3.9 has
+          # builds for 22.04 and 24.04 only, so its job stays on 24.04.
+          - version: '3.9'
+            runner: ubuntu-24.04
+          - version: '3.14'
+            runner: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

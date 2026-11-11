@@ -44,10 +44,10 @@ PREFIX = "/api/v1"
 
 PROGRAMS = [
     {"_id": "6a0000000000000000000001", "name": "Archived Card", "slug": "archived-card",
-     "status": "archived", "productType": "loyalty_card", "balanceKey": "points",
+     "status": "archived", "programType": "points", "productType": "loyalty_card", "balanceKey": "points",
      "pointsStep": 1, "currency": None, "createdAt": "2026-01-01T00:00:00.000Z"},
     {"_id": "6a0000000000000000000002", "name": "Harbor Coffee Rewards", "slug": "harbor-coffee",
-     "status": "active", "productType": "loyalty_card", "balanceKey": "points",
+     "status": "active", "programType": "points", "productType": "loyalty_card", "balanceKey": "points",
      "pointsStep": 1, "currency": None,
      "barcode": {"format": "PKBarcodeFormatQR", "valueTemplate": "MEMBER-{{memberCode}}"},
      "createdAt": "2026-02-01T00:00:00.000Z"},

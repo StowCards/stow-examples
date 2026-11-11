@@ -1,6 +1,7 @@
 package cards.stow.example;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -42,35 +43,31 @@ public final class Demo {
     private static void run(StowClient stow) throws IOException, InterruptedException {
         System.out.println("API:       " + stow.baseUrl());
 
-        // 1. The first active program.
-        StowClient.Program program = null;
-        for (StowClient.Program candidate : stow.listPrograms()) {
-            if ("active".equals(candidate.status())) {
-                program = candidate;
-                break;
-            }
-            System.out.printf("Skipped:   %s (status %s)%n", candidate.name(), candidate.status());
-        }
+        // 1. A program whose balance the points call can change.
+        StowClient.Program program = pickProgram(stow.listPrograms());
         if (program == null) {
-            fail(1, "Error: No active program found. Publish a program in the Stow Cards console "
-                    + "(Pass Designer) first.");
+            fail(1, "Error: No active points, tiered, gift card or stamp card program found. Publish one in the "
+                    + "Stow Cards console (Pass Designer) first.");
             return;
         }
-        System.out.printf("Program:   %s (%s)%n", program.name(), program.id());
+        boolean stamps = "stamps".equals(program.programType());
+        System.out.printf("Program:   %s (%s, %s)%n", program.name(), program.id(), program.programType());
 
-        // 2. Enrol a member.
+        // 2. Enrol a member. A stamp card starts empty: a starting balance of 50 would fill it.
         String email = "dev+" + System.currentTimeMillis() + "@example.com";
         StowClient.Member enrolled = stow.enrollMember(
-                new StowClient.EnrollRequest(program.id(), "Ada", "Lovelace", email, 50));
+                new StowClient.EnrollRequest(program.id(), "Ada", "Lovelace", email, stamps ? null : 50));
         System.out.printf("Enrolled:  %s %s <%s>%n", enrolled.firstName(), enrolled.lastName(), enrolled.email());
         if (enrolled.deduped()) {
             System.out.println("           deduped: true, so this email was already enrolled and nothing was created");
         }
 
-        // 3. Award 10 points. One Idempotency-Key for this gesture, reused on every retry of it.
+        // 3. Award 10 points, or one stamp on a stamp card (which moves one stamp at a time).
+        // One Idempotency-Key for this gesture, reused on every retry of it.
         String idempotencyKey = UUID.randomUUID().toString();
-        StowClient.PointsResult result = stow.adjustPoints(enrolled.id(), 10, "Thanks for visiting!", idempotencyKey);
-        System.out.printf("Awarded:   10 points (%s -> %s)%n", result.previous(), result.current());
+        int delta = stamps ? 1 : 10;
+        StowClient.PointsResult result = stow.adjustPoints(enrolled.id(), delta, "Thanks for visiting!", idempotencyKey);
+        System.out.printf("Added:     %s (%s -> %s)%n", stamps ? "1 stamp" : "10 points", result.previous(), result.current());
 
         // 4. Read the member back.
         StowClient.Member member = stow.getMember(enrolled.id());
@@ -86,6 +83,21 @@ public final class Demo {
         if ("stub".equals(appleMode) || "stub".equals(googleMode)) {
             System.out.println("Stub mode: wallet credentials are not configured, so no update reaches a device.");
         }
+    }
+
+    /**
+     * The first active program with a points balance (points, tiered or gift card), else the first
+     * active stamp card, else null. Other pass types (coupons, memberships, tickets...) have no balance.
+     */
+    private static StowClient.Program pickProgram(List<StowClient.Program> programs) {
+        for (List<String> wanted : List.of(List.of("points", "tiered", "giftCard"), List.of("stamps"))) {
+            for (StowClient.Program candidate : programs) {
+                if ("active".equals(candidate.status()) && wanted.contains(candidate.programType())) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
     }
 
     /**

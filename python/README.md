@@ -2,9 +2,9 @@
 
 A small client for the Stow Cards REST API, using only the standard library, and a demo that runs the quickstart flow:
 
-1. List programs and pick the first active one.
-2. Enrol a member (`dev+<unix-ms>@example.com`, 50 starting points).
-3. Award 10 points with an `Idempotency-Key`.
+1. List programs and pick the first active one with a points balance (points, tiered or gift card), else the first active stamp card.
+2. Enrol a member (`dev+<unix-ms>@example.com`, 50 starting points; a stamp card starts empty).
+3. Award 10 points, or add 1 stamp on a stamp card, with an `Idempotency-Key`.
 4. Read the member back and print its Member ID, balance, wallet links and wallet modes.
 
 ## Prerequisites
@@ -31,7 +31,7 @@ set -a; . ./.env; set +a
 python3 demo.py
 ```
 
-The demo exits with `0` on success, `1` on an API or connection error (or when there is no active program) and `2` on a configuration error. Progress goes to stdout. An error goes to stderr as one line: `Error: <status> <CODE>: <message> (request id <id>)` when the API answered (without the request id part if the response carried no `X-Correlation-Id`), `Error: <CODE>: <message>` when no answer arrived (`CONNECTION_ERROR` or `TIMEOUT`), and `Configuration error: <message>` for a missing or unusable key or base URL.
+The demo exits with `0` on success, `1` on an API or connection error (or when no active program has a points or stamp balance) and `2` on a configuration error. Progress goes to stdout. An error goes to stderr as one line: `Error: <status> <CODE>: <message> (request id <id>)` when the API answered (without the request id part if the response carried no `X-Correlation-Id`), `Error: <CODE>: <message>` when no answer arrived (`CONNECTION_ERROR` or `TIMEOUT`), and `Configuration error: <message>` for a missing or unusable key or base URL.
 
 ## Sample output
 
@@ -40,9 +40,8 @@ From a run against a test gateway that has no wallet credentials (stub mode):
 ```text
 Stow Cards API at http://127.0.0.1:6221/api/v1
 
-1. Listed 2 program(s)
-   Skipped "Archived Card" (status: archived)
-   Using "Harbor Coffee Rewards" (6a0000000000000000000002)
+1. Listed 4 program(s)
+   Using "Harbor Coffee Rewards" (6a0000000000000000000002, points)
 2. Enrolled dev+1793004979643@example.com
 3. Awarding 10 points (Idempotency-Key 357ef9d4-0cf0-4672-8631-c6a8eda1d0e1)
    Balance 50 -> 60

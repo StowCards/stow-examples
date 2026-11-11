@@ -221,8 +221,8 @@ class StowClient:
         """Change a member's balance by ``delta`` or set it to ``value``.
 
         Pass one ``idempotency_key`` per gesture and the same key when you
-        retry that gesture yourself. Without one, the client makes a UUID
-        and reuses it across its own retries.
+        retry that gesture yourself. Without one (``None``), the client makes
+        a UUID and reuses it across its own retries; an empty key is refused.
         """
         if (delta is None) == (value is None):
             raise ValueError("Pass exactly one of delta or value.")
@@ -234,7 +234,9 @@ class StowClient:
             "PATCH",
             f"/merchants/me/members/{_segment(member_id)}/points",
             body,
-            idempotency_key=idempotency_key or str(uuid.uuid4()),
+            # Only None gets a fresh key: "" (an unset setting, say) would otherwise get a new
+            # key on each of the caller's own retries, so the gesture could apply twice.
+            idempotency_key=str(uuid.uuid4()) if idempotency_key is None else idempotency_key,
             retry=True,
             expect=_is_object,
             what="points result",

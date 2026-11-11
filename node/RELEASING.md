@@ -16,8 +16,11 @@ release comes from this repository.
    `node/CHANGELOG.md`. Versions stay on 1.0.x: `release-please-config.json` (at the repository root)
    sets `"versioning": "always-bump-patch"`, so features and fixes alike move 1.0.4 to 1.0.5.
 3. A maintainer reviews and merges the release pull request.
-4. The workflow tags `node-vX.Y.Z`, creates the GitHub release, runs every check, publishes to npm with a
-   provenance attestation and attaches a CycloneDX SBOM to the release.
+4. The workflow tags `node-vX.Y.Z` and creates the GitHub release. Its `build` job, which cannot
+   publish, installs, runs every check, packs the tarball and makes a CycloneDX SBOM. Its `publish` job,
+   the only one holding the npm token, runs no code from the package or its dependencies: it downloads
+   that tarball, publishes it with `--ignore-scripts` and a provenance attestation, and attaches the SBOM
+   to the release.
 
 The tag `node-v1.0.0` marks where this repository's history starts for the SDK (the last commit before
 the SDK moved in), so release-please has a baseline and the first changelog link resolves. The 1.0.0

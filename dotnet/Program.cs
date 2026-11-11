@@ -45,24 +45,26 @@ static async Task<int> RunAsync(StowClient stow, CancellationToken cancellationT
 {
     Console.WriteLine($"Stow Cards API at {stow.BaseUrl}");
 
-    // 1. Pick the first active program.
+    // 1. Pick the first active program with a points balance (points, tiered or gift card), else
+    // the first active stamp card. Other pass types (coupons, memberships, tickets...) have no balance.
     var programs = await stow.ListProgramsAsync(cancellationToken);
-    var program = programs.FirstOrDefault(p => p.Status == "active");
-    foreach (var skipped in programs.TakeWhile(p => p != program))
-    {
-        Console.WriteLine($"   skipping \"{skipped.Name}\" ({skipped.Status})");
-    }
+    var active = programs.Where(p => p.Status == "active").ToList();
+    var program = active.FirstOrDefault(p => p.ProgramType is "points" or "tiered" or "giftCard")
+        ?? active.FirstOrDefault(p => p.ProgramType == "stamps");
     if (program is null)
     {
         return Fail(
-            $"Error: none of the {programs.Count} programs is active. Publish one in the web console (Pass Designer) first.", 1);
+            $"Error: none of the {programs.Count} programs is an active points, tiered, gift card or stamp card program. " +
+            "Publish one in the web console (Pass Designer) first.", 1);
     }
-    Console.WriteLine($"1. Program: \"{program.Name}\" ({program.Id})");
+    var stamps = program.ProgramType == "stamps";
+    Console.WriteLine($"1. Program: \"{program.Name}\" ({program.Id}, {program.ProgramType})");
 
     // 2. Enrol a fresh member. A repeat of the same (programId, email) returns the existing member.
+    // A stamp card starts empty: a starting balance of 50 would fill it.
     var email = $"dev+{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}@example.com";
     var enrolled = await stow.EnrollMemberAsync(
-        new EnrollMemberRequest(program.Id, "Ada", "Lovelace", email, InitialPoints: 50),
+        new EnrollMemberRequest(program.Id, "Ada", "Lovelace", email, InitialPoints: stamps ? null : 50),
         cancellationToken);
     Console.WriteLine(enrolled.Deduped == true
         ? $"2. {email} was already enrolled; the existing member was returned (deduped: true)"
@@ -72,15 +74,16 @@ static async Task<int> RunAsync(StowClient stow, CancellationToken cancellationT
         Console.WriteLine($"   note: passes issued: apple={issuance.Apple}, google={issuance.Google}");
     }
 
-    // 3. Award 10 points. One Idempotency-Key for this gesture, reused on every retry of it.
+    // 3. Award 10 points, or one stamp on a stamp card (which moves one stamp at a time).
+    // One Idempotency-Key for this gesture, reused on every retry of it.
     var idempotencyKey = Guid.NewGuid().ToString();
     var adjusted = await stow.AdjustPointsAsync(
         enrolled.Id,
-        new AdjustPointsRequest(Delta: 10, ChangeMessage: "Thanks for visiting!"),
+        new AdjustPointsRequest(Delta: stamps ? 1 : 10, ChangeMessage: "Thanks for visiting!"),
         idempotencyKey,
         cancellationToken);
     Console.WriteLine(
-        $"3. Awarded 10 points: {adjusted.Previous?.ToString() ?? "n/a"} -> {adjusted.Current?.ToString() ?? "n/a"} (Idempotency-Key {idempotencyKey})");
+        $"3. Added {(stamps ? "1 stamp" : "10 points")}: {adjusted.Previous?.ToString() ?? "n/a"} -> {adjusted.Current?.ToString() ?? "n/a"} (Idempotency-Key {idempotencyKey})");
     Console.WriteLine(adjusted.PassUpdate is { } update
         ? $"   pass update: apple {update.Apple?.Mode ?? "unknown"}, {update.Apple?.DevicesNotified ?? 0}/{update.Apple?.DevicesAttempted ?? 0} devices notified; " +
           $"google {update.Google?.Mode ?? "unknown"}, object patched: {(update.Google?.ObjectPatched == true ? "yes" : "no")}"

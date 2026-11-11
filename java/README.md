@@ -3,9 +3,11 @@
 A runnable Java example of the Stow Cards public REST API (OpenAPI spec 1.0.14). It runs the
 loyalty loop server to server:
 
-1. Lists the merchant's programs and picks the first with `status` `active`.
-2. Enrols `dev+<unix-ms>@example.com` (Ada Lovelace, 50 starting points).
-3. Awards 10 points with `PATCH /merchants/me/members/{id}/points` and an `Idempotency-Key`.
+1. Lists the merchant's programs and picks the first active one with a points balance (`programType`
+   `points`, `tiered` or `giftCard`), else the first active stamp card (`stamps`).
+2. Enrols `dev+<unix-ms>@example.com` (Ada Lovelace, 50 starting points; a stamp card starts empty).
+3. Awards 10 points, or adds 1 stamp on a stamp card, with `PATCH /merchants/me/members/{id}/points`
+   and an `Idempotency-Key`.
 4. Reads the member back and prints the Member ID, the balance, the wallet links and the
    wallet modes.
 
@@ -15,14 +17,14 @@ It uses `java.net.http.HttpClient` and one dependency, Jackson databind.
 
 - Java 17 or later.
 - Maven 3.9 or later, or Docker (see below).
-- A published program (web console, Pass Designer).
+- A published, active points, tiered, gift card or stamp card program (web console, Pass Designer).
 - An API key (web console, Administration, API Keys) with these four permissions:
   - `merchants.programs:view`, to list the programs;
   - `merchants.members:create`, to enrol the member;
   - `merchants.members:edit`, for the points change;
   - `merchants.members:view`, to read the member back.
 
-Run against production, the example enrols a real member into your first active program and
+Run against production, the example enrols a real member into the program it picks and
 issues real wallet passes for it, so point it at a test program.
 
 ## Run
@@ -76,11 +78,10 @@ From a mock gateway in stub mode that fails the first points attempt with a `503
 
 ```text
 API:       http://host.docker.internal:6234/api/v1
-Skipped:   Archived Card (status archived)
-Program:   Harbor Coffee Rewards (6a0000000000000000000002)
+Program:   Harbor Coffee Rewards (6a0000000000000000000002, points)
 Enrolled:  Ada Lovelace <dev+1793006660585@example.com>
 [stow] PATCH /merchants/me/members/38e1ac98-b1e2-4116-91e7-a81835372d3e/points: 503 SERVICE_UNAVAILABLE; retry 1 of 2 in 482 ms
-Awarded:   10 points (50 -> 60)
+Added:     10 points (50 -> 60)
 
 Member ID: RJRTDHW4XX
 Balance:   60 (fieldValues.points)

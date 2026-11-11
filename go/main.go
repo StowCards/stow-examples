@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -46,31 +47,31 @@ func main() {
 }
 
 func run(ctx context.Context, client *stow.Client) error {
-	// 1. Pick the first active program.
+	// 1. Pick a program whose balance the points call can change.
 	programs, err := client.ListPrograms(ctx)
 	if err != nil {
 		return err
 	}
-	var program *stow.Program
-	for i := range programs {
-		if programs[i].Status == "active" {
-			program = &programs[i]
-			break
-		}
-	}
+	program := pickProgram(programs)
 	if program == nil {
-		return fmt.Errorf("none of the %d programs on this merchant is active: publish one in the web console (Pass Designer) first", len(programs))
+		return fmt.Errorf("none of the %d programs on this merchant is an active points, tiered, gift card or stamp card program: publish one in the web console (Pass Designer) first", len(programs))
 	}
-	fmt.Printf("Program:       %s (%s), first active of %d\n", program.Name, program.ID, len(programs))
+	stamps := program.ProgramType == "stamps"
+	fmt.Printf("Program:       %s (%s, %s) of %d\n", program.Name, program.ID, program.ProgramType, len(programs))
 
-	// 2. Enrol a new member.
+	// 2. Enrol a new member. A stamp card starts empty: a starting balance of
+	// 50 would fill it (InitialPoints 0 is left out of the request).
+	initialPoints := 50
+	if stamps {
+		initialPoints = 0
+	}
 	email := fmt.Sprintf("dev+%d@example.com", time.Now().UnixMilli())
 	enrolled, err := client.EnrollMember(ctx, stow.EnrollRequest{
 		ProgramID:     program.ID,
 		FirstName:     "Ada",
 		LastName:      "Lovelace",
 		Email:         email,
-		InitialPoints: 50,
+		InitialPoints: initialPoints,
 	})
 	if err != nil {
 		return err
@@ -83,12 +84,17 @@ func run(ctx context.Context, client *stow.Client) error {
 		fmt.Printf("               passIssuance: apple=%t google=%t (a wallet link that is false was not issued)\n", pi.Apple, pi.Google)
 	}
 
-	// 3. Award 10 points under one Idempotency-Key for this gesture.
+	// 3. Award 10 points, or one stamp on a stamp card (which moves one stamp
+	// at a time), under one Idempotency-Key for this gesture.
 	key, err := stow.NewIdempotencyKey()
 	if err != nil {
 		return fmt.Errorf("make an idempotency key: %w", err)
 	}
-	change := stow.PointsChange{Delta: 10, ChangeMessage: "Thanks for visiting!"}
+	delta := 10
+	if stamps {
+		delta = 1
+	}
+	change := stow.PointsChange{Delta: delta, ChangeMessage: "Thanks for visiting!"}
 	adjusted, err := client.AdjustPoints(ctx, enrolled.ID, change, key)
 	if err != nil {
 		return err
@@ -106,6 +112,20 @@ func run(ctx context.Context, client *stow.Client) error {
 	fmt.Printf("Google Wallet: %s (mode: %s)\n", orNone(member.Google.SaveURL), orNone(member.Google.Mode))
 	if member.Apple.Mode == "stub" || member.Google.Mode == "stub" {
 		fmt.Println("Stub mode: wallet credentials are missing on this server, so pass updates reach no phone.")
+	}
+	return nil
+}
+
+// pickProgram returns the first active program with a points balance (points,
+// tiered or gift card), else the first active stamp card, else nil. Other pass
+// types (coupons, memberships, tickets...) have no balance to change.
+func pickProgram(programs []stow.Program) *stow.Program {
+	for _, wanted := range [][]string{{"points", "tiered", "giftCard"}, {"stamps"}} {
+		for i := range programs {
+			if programs[i].Status == "active" && slices.Contains(wanted, programs[i].ProgramType) {
+				return &programs[i]
+			}
+		}
 	}
 	return nil
 }

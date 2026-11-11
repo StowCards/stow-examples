@@ -30,8 +30,14 @@ a provenance attestation (see [`node/RELEASING.md`](node/RELEASING.md)).
 Each language example performs the **same end-to-end flow**:
 
 ```
-list programs → enroll a member → award 10 points (idempotent) → read the member back
+list programs → enroll a member → award 10 points, or 1 stamp (idempotent) → read the member back
 ```
+
+The demo uses the first active program with a points balance (points, tiered or gift card) and awards it
+10 points. Without one it uses the first active stamp card, enrols the member with no stamps and adds one,
+since a stamp card moves one stamp at a time. Other pass types (coupons, memberships, tickets and the
+rest) have no balance to change, so a merchant with only those makes the demo stop before it enrols
+anyone.
 
 They all read two environment variables:
 
@@ -54,8 +60,8 @@ same flow with it (run `npm ci && npm run build` in `node/` first).
 
 ### Before you run them
 
-- You need a Stow Cards account with at least one **active** program, published in the console's Pass
-  Designer.
+- You need a Stow Cards account with at least one **active** points, tiered, gift card or stamp card
+  program, published in the console's Pass Designer.
 - Create an API key in the console under **Administration → API Keys**. Its role needs
   `merchants.programs:view`, `merchants.members:create`, `merchants.members:edit` (the points change) and
   `merchants.members:view` (the read-back).
@@ -69,8 +75,10 @@ Each language folder ships a small reusable client, the runnable demo and its ow
 follow the same rules as the official SDK:
 
 - the key goes in the `X-API-Key` header, over HTTPS; plain HTTP is accepted only for a local gateway
-  (`localhost`, `127.0.0.1`, `[::1]`, a `.localhost` name or `host.docker.internal`);
-- the key is never printed, and a key containing spaces, line breaks or non-ASCII characters is refused;
+  (`localhost`, `127.0.0.1`, `[::1]`, a `.localhost` name or `host.docker.internal`; the SDK accepts
+  `host.docker.internal` only with its `allowInsecureHttp` option);
+- the key is never printed; whitespace around it is trimmed, and a key with spaces, line breaks or
+  non-ASCII characters inside it is refused;
 - the points change carries an `Idempotency-Key` made once for the gesture and reused on every retry, so
   a retry can never award twice;
 - network errors, timeouts, 408, 429, 500, 502, 503 and 504 are retried at most twice with backoff and

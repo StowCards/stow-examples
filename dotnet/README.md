@@ -5,15 +5,16 @@ REST API, with a small reusable client you can copy into your own project. It
 uses only `HttpClient` and `System.Text.Json`: no NuGet packages.
 
 ```
-list programs → enroll a member → award 10 points (idempotent) → read the member back
+list programs → enroll a member → award 10 points, or 1 stamp (idempotent) → read the member back
 ```
 
-1. Lists the merchant's programs and picks the first one whose `status` is
-   `active`.
-2. Enrols `dev+<unix-ms>@example.com` (Ada Lovelace, 50 initial points), so
-   every run creates a fresh member.
-3. Awards 10 points with `PATCH /merchants/me/members/{id}/points` and an
-   `Idempotency-Key`.
+1. Lists the merchant's programs and picks the first active one with a points
+   balance (`programType` `points`, `tiered` or `giftCard`), else the first
+   active stamp card (`stamps`).
+2. Enrols `dev+<unix-ms>@example.com` (Ada Lovelace, 50 initial points; a
+   stamp card starts empty), so every run creates a fresh member.
+3. Awards 10 points, or adds 1 stamp on a stamp card, with
+   `PATCH /merchants/me/members/{id}/points` and an `Idempotency-Key`.
 4. Reads the member back and prints the Member ID, the balance, both wallet
    links and the wallet modes.
 
@@ -26,7 +27,8 @@ list programs → enroll a member → award 10 points (idempotent) → read the 
   - `merchants.members:create`: enrol the member (step 2);
   - `merchants.members:edit`: the points change (step 3);
   - `merchants.members:view`: read the member back (step 4).
-- At least one published, active program on the merchant the key belongs to
+- At least one published, active points, tiered, gift card or stamp card
+  program on the merchant the key belongs to
   (web console → Pass Designer).
 
 ## Files
@@ -72,7 +74,7 @@ U+2028 and U+2029 included) becomes a single space:
 | `Configuration error: <message>` | `STOW_API_KEY` missing or malformed, `STOW_BASE_URL` refused | `2` |
 | `Error: <status> <CODE>: <message> (request id <id>)` | the API answered with an error (the request id part only when the response carried `X-Correlation-Id`) | `1` |
 | `Error: CONNECTION_ERROR: <message>` or `Error: TIMEOUT: <message>` | no response arrived | `1` |
-| `Error: none of the <n> programs is active. …` | the merchant has no active program | `1` |
+| `Error: none of the <n> programs is an active points, tiered, gift card or stamp card program. …` | no active program has a balance the demo can change | `1` |
 
 Ctrl+C prints `Cancelled.` and exits `130`.
 
@@ -84,11 +86,10 @@ attempt answered `503` and the client retried it with the same
 
 ```
 Stow Cards API at http://127.0.0.1:6235/api/v1
-   skipping "Archived Card" (archived)
-1. Program: "Harbor Coffee Rewards" (6a0000000000000000000002)
+1. Program: "Harbor Coffee Rewards" (6a0000000000000000000002, points)
 2. Enrolled dev+1793008608846@example.com
    ... PATCH /merchants/me/members/db3c45e6-2173-4835-897a-eca2c700554d/points: 503 SERVICE_UNAVAILABLE; retry 1/2 in 420 ms
-3. Awarded 10 points: 50 -> 60 (Idempotency-Key a4a5e5ca-c6b3-4e6f-919b-f0cc76b0820a)
+3. Added 10 points: 50 -> 60 (Idempotency-Key a4a5e5ca-c6b3-4e6f-919b-f0cc76b0820a)
    pass update: apple stub, 0/0 devices notified; google stub, object patched: no
 4. Member:
    Member ID     UXET9YCS23

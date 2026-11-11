@@ -14,6 +14,9 @@ from typing import Any
 
 from stow_client import StowApiError, StowClient, StowConfigError, StowConnectionError
 
+# Program types whose balance takes a change of 10. A stamp card takes one stamp at a time.
+POINTS_TYPES = ("points", "tiered", "giftCard")
+
 
 def obj(value: Any) -> dict[str, Any]:
     """The value if it is a JSON object, else an empty one (for optional nested fields)."""
@@ -30,31 +33,41 @@ def balance_of(member: dict[str, Any], program: dict[str, Any]) -> tuple[str, An
     return key, obj(member.get("fieldValues")).get(key)
 
 
+def pick_program(programs: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The first active program with a points balance (points, tiered or gift card), else the
+    first active stamp card. Other pass types (coupons, memberships, tickets...) have no balance."""
+    active = [p for p in programs if p.get("status") == "active"]
+    for wanted in (POINTS_TYPES, ("stamps",)):
+        for program in active:
+            if program.get("programType") in wanted:
+                return program
+    return None
+
+
 def main() -> int:
     logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="   (retry) %(message)s")
     client = StowClient()
     print(f"Stow Cards API at {client.base_url}\n")
 
-    # 1. Pick the first active program.
+    # 1. Pick a program whose balance the points call can change.
     programs = client.list_programs()
     print(f"1. Listed {len(programs)} program(s)")
-    program = None
-    for candidate in programs:
-        if candidate.get("status") == "active":
-            program = candidate
-            break
-        print(f'   Skipped "{candidate.get("name")}" (status: {candidate.get("status")})')
+    program = pick_program(programs)
     if program is None:
         fail(
-            "Error: No active program on this merchant. Publish one in the Stow Cards console "
-            "(Pass Designer) and run the example again."
+            "Error: No active points, tiered, gift card or stamp card program on this merchant. Publish one "
+            "in the Stow Cards console (Pass Designer) and run the example again."
         )
         return 1
-    print(f'   Using "{program.get("name")}" ({program["_id"]})')
+    stamps = program.get("programType") == "stamps"
+    print(f'   Using "{program.get("name")}" ({program["_id"]}, {program.get("programType")})')
 
     # 2. Enrol a new member. A fresh email per run avoids the (programId, email) dedupe.
+    # A stamp card starts empty: a starting balance of 50 would fill it.
     email = f"dev+{int(time.time() * 1000)}@example.com"
-    member = client.enroll_member(program["_id"], "Ada", "Lovelace", email, initial_points=50)
+    member = client.enroll_member(
+        program["_id"], "Ada", "Lovelace", email, initial_points=None if stamps else 50
+    )
     print(f"2. Enrolled {email}")
     if member.get("deduped") is True:
         print("   deduped: true (this email was already in the program, so the API returned the existing member)")
@@ -63,12 +76,13 @@ def main() -> int:
         if issuance.get(wallet) is False:
             print(f"   Note: the {name} pass could not be built, so the member has no {name} link.")
 
-    # 3. Award 10 points. One Idempotency-Key for this gesture, resent unchanged on every retry.
+    # 3. Award 10 points, or one stamp on a stamp card (which moves one stamp at a time).
+    # One Idempotency-Key for this gesture, resent unchanged on every retry.
     idempotency_key = str(uuid.uuid4())
-    print(f"3. Awarding 10 points (Idempotency-Key {idempotency_key})")
+    print(f"3. {'Adding 1 stamp' if stamps else 'Awarding 10 points'} (Idempotency-Key {idempotency_key})")
     result = client.adjust_points(
         member["id"],
-        delta=10,
+        delta=1 if stamps else 10,
         change_message="Thanks for visiting!",
         idempotency_key=idempotency_key,
     )

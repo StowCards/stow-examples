@@ -9,7 +9,9 @@ programs, enrol a member, award points, read the member back.
   in). PHP 8.1 reached end of life on 31 December 2025, and the client relies
   on 8.2's `#[\SensitiveParameter]` and `SensitiveParameterValue` to keep the
   key out of dumps and stack traces. No Composer packages.
-- A published program with status `active` (web console, Pass Designer).
+- A published program with status `active` and a balance the demo can change
+  (web console, Pass Designer): it uses the first points, tiered or gift card
+  program and awards 10 points, else the first stamp card and adds 1 stamp.
 - An API key (web console, Administration, API Keys) whose role has these
   four permissions:
   - `merchants.programs:view` (list programs)
@@ -71,8 +73,7 @@ Against a stub-mode gateway that failed the first points attempt with a
 
 ```text
 1. Listing programs
-   skipping "Archived Card" (archived)
-   using "Harbor Coffee Rewards" (6a0000000000000000000002)
+   using "Harbor Coffee Rewards" (6a0000000000000000000002, points)
 2. Enrolling a member
    enrolled dev+1793004584907@example.com
 3. Awarding 10 points
